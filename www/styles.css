@@ -1,0 +1,476 @@
+/* ==============================================================================
+   BELGIUM NAME HEATMAP - STYLES 
+   ============================================================================== */
+
+/* ==============================================================================
+   COLOR VARIABLES
+   ============================================================================== */
+:root {
+  /* Base Colors */
+  --bg-light: #f5f5f5;
+  --bg-dark: #2c2c2c;
+  --panel-light: rgba(255, 255, 255, 0.97);
+  --panel-dark: rgba(45, 45, 45, 0.97);
+  --text-light: #333;
+  --text-dark: #e0e0e0;
+
+  /* Primary / Accent Colors */
+  --primary: #3c8dbc;
+  --primary-hover: #3c8dbc;
+  --male: #5dade2;
+  --female: #ff69b4;
+
+  /* Metrics & Stats */
+  --metric-bg-light: #f8f9fa;
+  --metric-bg-dark: #3a3a3a;
+  --metric-text: #3c8dbc;
+  --stat-label-light: #666;
+  --stat-label-dark: #b0b0b0;
+}
+
+body.dark-mode {
+  --bg: var(--bg-dark);
+  --panel-bg: var(--panel-dark);
+  --text-color: var(--text-dark);
+  --metric-bg: var(--metric-bg-dark);
+  --stat-label: var(--stat-label-dark);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-light);
+  color: var(--text-light);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ==============================================================================
+   MAP
+   ============================================================================== */
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.leaflet-container {
+  background-color: var(--bg-light) !important;
+  transition: background-color 0.3s ease;
+}
+
+body.dark-mode .leaflet-container {
+  background-color: var(--bg-dark) !important;
+}
+
+/* LEAFLET CONTROLS DARK MODE */
+body.dark-mode .leaflet-bar,
+body.dark-mode .leaflet-bar a,
+body.dark-mode .leaflet-control-zoom a {
+  background: rgba(45, 45, 45, 0.95) !important;
+  color: var(--text-dark) !important;
+  border-color: #555 !important;
+}
+
+body.dark-mode .leaflet-bar a:hover,
+body.dark-mode .leaflet-control-zoom a:hover {
+  background: rgba(60, 60, 60, 0.95) !important;
+}
+
+body.dark-mode .info.legend.leaflet-control {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--text-dark) !important;
+}
+
+/* ==============================================================================
+   PANELS
+   ============================================================================== */
+.left-panel,
+.right-panel {
+  position: absolute;
+  top: 50%;
+  background: var(--panel-light);
+  color: var(--text-light);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  z-index: 1000;
+  padding: 20px;
+  border-radius: 12px;
+  overflow-y: auto;
+  transition: transform 0.3s ease, opacity 0.3s ease, background 0.3s ease, color 0.3s ease;
+}
+
+.left-panel {
+  transform: translateY(-50%);
+  left: 15px;
+  width: 320px;
+  max-height: calc(100vh - 100px);
+}
+
+.right-panel {
+  transform: translateY(-50%);
+  right: 15px;
+  width: 400px;
+  max-height: calc(100vh - 100px);
+}
+
+.left-panel.closed {
+  transform: translate(-100%, -50%);
+  opacity: 0;
+}
+
+.right-panel.closed {
+  transform: translate(100%, -50%);
+  opacity: 0;
+}
+
+body.dark-mode .left-panel,
+body.dark-mode .right-panel {
+  background: var(--panel-dark);
+  color: var(--text-dark);
+}
+
+/* ==============================================================================
+   TOGGLE BUTTONS
+   ============================================================================== */
+.sidebar-toggle,
+.metrics-toggle,
+.dark-mode-toggle {
+  position: absolute;
+  z-index: 1001;
+  background: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.sidebar-toggle,
+.metrics-toggle {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.metrics-toggle {
+  right: 15px;
+}
+
+.sidebar-toggle {
+  left: 15px;
+}
+
+.sidebar-toggle:hover,
+.metrics-toggle:hover {
+  background: var(--primary-hover);
+  color: white;
+  transform: translateY(-50%) scale(1.05);
+}
+
+.sidebar-toggle.hidden,
+.metrics-toggle.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dark-mode-toggle {
+  top: 15px;
+  right: 15px;
+  font-size: 24px;
+}
+
+.dark-mode-toggle:hover {
+  transform: scale(1.1);
+}
+
+body.dark-mode .sidebar-toggle,
+body.dark-mode .metrics-toggle,
+body.dark-mode .dark-mode-toggle {
+  background: var(--panel-dark);
+  color: var(--text-dark);
+}
+
+body.dark-mode .sidebar-toggle:hover,
+body.dark-mode .metrics-toggle:hover {
+  background: var(--primary-hover);
+  color: white;
+}
+
+/* ==============================================================================
+   PANEL CONTENT
+   ============================================================================== */
+.panel-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: var(--text-light);
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 10px;
+}
+
+body.dark-mode .panel-title {
+  color: var(--text-dark);
+}
+
+.filter-group {
+  margin-bottom: 20px;
+}
+
+.filter-group label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--primary);
+}
+
+body.dark-mode .filter-group label {
+  color: var(--male);
+}
+
+.close-sidebar {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.close-sidebar:hover {
+  background: #f0f0f0;
+  color: var(--text-light);
+}
+
+body.dark-mode .close-sidebar:hover {
+  background: #2a2a2a;
+  color: var(--text-dark);
+}
+
+/* ==============================================================================
+   STATISTICS DISPLAY
+   ============================================================================== */
+.name-stats-card {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: var(--metric-bg-light);
+  border-radius: 8px;
+}
+
+body.dark-mode .name-stats-card {
+  background: var(--metric-bg-dark);
+}
+
+.name-stats-card h4 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.name-stats-card h4.gender-m {
+  color: var(--male);
+}
+
+.name-stats-card h4.gender-f {
+  color: var(--female);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.stat-box {
+  text-align: center;
+  padding: 10px;
+  background: white;
+  border-radius: 6px;
+}
+
+body.dark-mode .stat-box {
+  background: rgba(255,255,255,0.08);
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--metric-text);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--stat-label-light);
+  margin-top: 4px;
+}
+
+body.dark-mode .stat-label {
+  color: var(--stat-label-dark);
+}
+
+.region-breakdown {
+  font-size: 13px;
+  margin-top: 12px;
+  color: var(--stat-label-light);
+}
+
+body.dark-mode .region-breakdown {
+  color: var(--stat-label-dark);
+}
+
+.region-item {
+  padding: 4px 0;
+}
+
+/* ==============================================================================
+   BUTTONS
+   ============================================================================== */
+.btn-secondary {
+  width: 100%;
+  padding: 10px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+}
+
+.btn-block {
+  display: block;
+  width: 100%;
+}
+
+/* ==============================================================================
+   SELECTIZE (NAME SEARCH)
+   ============================================================================== */
+.selectize-input {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: white;
+  min-height: 38px;
+}
+
+body.dark-mode .selectize-input {
+  background: #2a2a2a;
+  border-color: #444;
+  color: var(--text-dark);
+}
+
+.selectize-input.focus {
+  border-color: var(--primary);
+}
+
+.selectize-dropdown {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  margin-top: 2px;
+}
+
+body.dark-mode .selectize-dropdown {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+.selectize-dropdown-content {
+  max-height: 250px;
+}
+
+.selectize-dropdown .option {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.selectize-dropdown .option:hover,
+.selectize-dropdown .active {
+  background: var(--metric-bg-light);
+  color: var(--text-light);
+}
+
+body.dark-mode .selectize-dropdown .option:hover,
+body.dark-mode .selectize-dropdown .active {
+  background: var(--metric-bg-dark);
+  color: var(--text-dark);
+}
+
+.selectize-input .item {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin: 2px 4px 2px 0;
+}
+
+.selectize-input .remove {
+  border-left: 1px solid rgba(255,255,255,0.3);
+  padding-left: 6px;
+  margin-left: 6px;
+}
+
+/* ==============================================================================
+   FORM CONTROLS
+   ============================================================================== */
+.form-group {
+  margin-bottom: 15px;
+}
+
+select.form-control {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+body.dark-mode select.form-control {
+  background: #2a2a2a;
+  border-color: #444;
+  color: var(--text-dark);
+}
+
+select.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* ==============================================================================
+   UTILITIES
+   ============================================================================== */
+hr {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 15px 0;
+}
+
+body.dark-mode hr {
+  border-top-color: #444;
+}
