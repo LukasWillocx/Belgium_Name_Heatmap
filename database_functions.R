@@ -46,7 +46,7 @@ get_all_names <- function(conn, gender = NULL) {
   setNames(result$name, result$name)
 }
 
-# Get heatmap data for selected name(s)
+# Get heatmap data for selected name(s) - ORIGINAL FUNCTION
 get_name_heatmap_data <- function(conn, names) {
   if (length(names) == 0) return(NULL)
   
@@ -89,6 +89,43 @@ get_name_heatmap_data <- function(conn, names) {
     municipality_name = result$municipality_name,
     frequency = result$frequency,
     percentage = result$percentage,
+    geometry = geom
+  )
+}
+
+# Get heatmap data with individual name breakdown for hover labels
+get_name_heatmap_data_detailed <- function(conn, names, group_id = "a") {
+  if (length(names) == 0) return(NULL)
+  
+  # Escape names for SQL
+  names_sql <- paste0("'", gsub("'", "''", names), "'", collapse = ", ")
+  
+  query <- sprintf(
+    "SELECT 
+       m.id as municipality_id,
+       m.name as municipality_name,
+       COALESCE(ST_AsText(m.geometry_simplified), ST_AsText(m.geometry)) as wkt,
+       SUM(nf.frequency) as frequency,
+       STRING_AGG(nf.name || ': ' || nf.frequency, '; ' ORDER BY nf.frequency DESC) as name_breakdown
+     FROM municipalities m
+     LEFT JOIN name_frequencies nf ON nf.municipality_id = m.id
+     WHERE nf.year = 2025 
+       AND nf.name IN (%s)
+     GROUP BY m.id, m.name, m.geometry, m.geometry_simplified
+     HAVING SUM(nf.frequency) > 0
+     ORDER BY m.name",
+    names_sql
+  )
+  
+  result <- dbGetQuery(conn, query)
+  if (nrow(result) == 0) return(NULL)
+  
+  geom <- st_as_sfc(result$wkt, crs = 4326)
+  st_sf(
+    municipality_id = result$municipality_id,
+    municipality_name = result$municipality_name,
+    frequency = result$frequency,
+    name_breakdown = result$name_breakdown,
     geometry = geom
   )
 }
