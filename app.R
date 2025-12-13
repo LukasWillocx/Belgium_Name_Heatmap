@@ -185,10 +185,17 @@ server <- function(input, output, session) {
     rgb(blended[1], blended[2], blended[3], maxColorValue = 255)
   }
   
-  # Update map when names are selected
+  # Debounced reactive values for names to prevent race conditions
+  names_a_debounced <- debounce(reactive(input$names_a), 500)
+  names_b_debounced <- debounce(reactive(input$names_b), 500)
+  
+  # Update map when names are selected - with debouncing
   observe({
+    names_a <- names_a_debounced()
+    names_b <- names_b_debounced()
+    
     # Don't require both inputs - allow either one
-    if (length(input$names_a) == 0 && length(input$names_b) == 0) {
+    if (length(names_a) == 0 && length(names_b) == 0) {
       leafletProxy("map") %>%
         clearShapes() %>%
         clearControls()
@@ -200,16 +207,16 @@ server <- function(input, output, session) {
     data_b <- NULL
     
     tryCatch({
-      if (length(input$names_a) > 0) {
-        data_a <- get_name_heatmap_data_detailed(conn, input$names_a, "a")
+      if (length(names_a) > 0) {
+        data_a <- get_name_heatmap_data_detailed(conn, names_a, "a")
       }
     }, error = function(e) {
       showNotification(paste("Error loading Group A data:", e$message), type = "error")
     })
     
     tryCatch({
-      if (length(input$names_b) > 0) {
-        data_b <- get_name_heatmap_data_detailed(conn, input$names_b, "b")
+      if (length(names_b) > 0) {
+        data_b <- get_name_heatmap_data_detailed(conn, names_b, "b")
       }
     }, error = function(e) {
       showNotification(paste("Error loading Group B data:", e$message), type = "error")
@@ -482,7 +489,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Interactive comparison chart with Plotly
+  # Interactive comparison chart with Plotly - USING CUSTOM PALETTES
   output$comparison_chart <- renderPlotly({
     stats_a <- if (length(input$names_a) > 0) {
       get_name_statistics(conn, input$names_a)
@@ -515,13 +522,17 @@ server <- function(input, output, session) {
     
     if (nrow(plot_data) == 0) return(NULL)
     
-    # Create color palette
-    unique_names <- unique(plot_data$name)
-    colors <- RColorBrewer::brewer.pal(min(length(unique_names), 12), "Set3")
-    if (length(unique_names) > 12) {
-      colors <- colorRampPalette(colors)(length(unique_names))
+    # Create color map using custom palettes
+    unique_names_a <- if (!is.null(stats_a)) stats_a$name else character(0)
+    unique_names_b <- if (!is.null(stats_b)) stats_b$name else character(0)
+    
+    color_map <- c()
+    if (length(unique_names_a) > 0) {
+      color_map <- c(color_map, setNames(GROUP_A_COLORS[1:length(unique_names_a)], unique_names_a))
     }
-    color_map <- setNames(colors, unique_names)
+    if (length(unique_names_b) > 0) {
+      color_map <- c(color_map, setNames(GROUP_B_COLORS[1:length(unique_names_b)], unique_names_b))
+    }
     
     # Determine text color based on dark mode
     text_color <- if(darkMode()) "#e0e0e0" else "#333333"
