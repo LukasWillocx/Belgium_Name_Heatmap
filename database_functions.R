@@ -7,6 +7,28 @@ library(sf)
 library(DBI)
 
 # ==============================================================================
+# COLOR PALETTES
+# ==============================================================================
+
+# Custom 5-color palette for Group A (light to dark reds)
+GROUP_A_COLORS <- c(
+  "#ffb3b3",  # Light red
+  "#ff8080",  # Medium-light red
+  "#e74c3c",  # Base red
+  "#c0392b",  # Dark red
+  "#8b0000"   # Very dark red
+)
+
+# Custom 5-color palette for Group B (light to dark blues)
+GROUP_B_COLORS <- c(
+  "#aed6f1",  # Light blue
+  "#5dade2",  # Medium-light blue
+  "#3498db",  # Base blue
+  "#2874a6",  # Dark blue
+  "#1a5490"   # Very dark blue
+)
+
+# ==============================================================================
 # CONNECTION
 # ==============================================================================
 
