@@ -6,6 +6,7 @@ library(shiny)
 library(leaflet)
 library(shinyjs)
 library(plotly)
+library(markdown)
 
 # Source external files
 source("database_functions.R")
@@ -18,7 +19,26 @@ ui <- fluidPage(
   useShinyjs(),
   
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css?v=8")
+    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css?v=6"),
+    tags$style(HTML("
+      .about-modal-content img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 15px auto;
+      }
+      .about-modal-content {
+        line-height: 1.6;
+      }
+      .about-modal-content h1 {
+        margin-top: 0;
+      }
+      .about-modal-content h2 {
+        margin-top: 20px;
+        border-bottom: 1px solid #e0e0e0;
+        padding-bottom: 5px;
+      }
+    "))
   ),
   
   tags$button(class = "dark-mode-toggle", id = "darkModeToggle", "🌙"),
@@ -60,7 +80,10 @@ ui <- fluidPage(
     tags$div(
       class = "filter-group",
       actionButton("reset", "Clear Selection", class = "btn-secondary btn-block")
-    )
+    ),
+    tags$div(
+      class = "filter-group",
+      actionButton("aboutBtn", "About", class = "btn-info btn-block", icon = icon("info-circle"))),
   ),
   
   # Right Panel
@@ -128,10 +151,34 @@ server <- function(input, output, session) {
   })
   
   # ===========================================================================
+  # ABOUT MODAL
+  # ===========================================================================
+  
+  observeEvent(input$aboutBtn, {
+    # Read the markdown file
+    about_content <- tryCatch({
+      if (file.exists("about.md")) {
+        markdownToHTML(file = "about.md", fragment.only = TRUE)
+      } else {
+        "<p>About content not found. Please create an <code>about.md</code> file.</p>"
+      }
+    }, error = function(e) {
+      paste("<p>Error loading about content:</p><pre>", e$message, "</pre>")
+    })
+    
+    showModal(modalDialog(
+      title = "About This Application",
+      tags$div(class = "about-modal-content", HTML(about_content)),
+      easyClose = TRUE,
+      footer = modalButton("Close"),
+      size = "l"
+    ))
+  })
+  
+  # ===========================================================================
   # NAME AUTOCOMPLETE
   # ===========================================================================
   
-  # Get all names once for both inputs
   all_names <- reactive({
     get_all_names(conn, NULL)
   })
@@ -165,26 +212,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # Helper function to blend colors based on frequency ratio
-  blend_colors <- function(freq_a, freq_b, intensity) {
-    # Base colors
-    red <- col2rgb("#e74c3c")
-    blue <- col2rgb("#3498db")
-    
-    # Calculate ratio (0 = all A/red, 1 = all B/blue)
-    total <- freq_a + freq_b
-    ratio <- freq_b / total
-    
-    # Blend RGB values
-    blended <- red * (1 - ratio) + blue * ratio
-    
-    # Apply intensity based on total frequency (darker = more frequent)
-    # Intensity ranges from 0.3 (light) to 1.0 (dark)
-    blended <- blended * intensity
-    
-    rgb(blended[1], blended[2], blended[3], maxColorValue = 255)
-  }
-  
   # Debounced reactive values for names to prevent race conditions
   names_a_debounced <- debounce(reactive(input$names_a), 500)
   names_b_debounced <- debounce(reactive(input$names_b), 500)
@@ -194,7 +221,6 @@ server <- function(input, output, session) {
     names_a <- names_a_debounced()
     names_b <- names_b_debounced()
     
-    # Don't require both inputs - allow either one
     if (length(names_a) == 0 && length(names_b) == 0) {
       leafletProxy("map") %>%
         clearShapes() %>%
@@ -227,157 +253,10 @@ server <- function(input, output, session) {
       clearShapes() %>%
       clearControls()
     
-    # Get all unique municipalities
-    all_munis <- c()
-    if (!is.null(data_a) && nrow(data_a) > 0) all_munis <- c(all_munis, data_a$municipality_id)
-    if (!is.null(data_b) && nrow(data_b) > 0) all_munis <- c(all_munis, data_b$municipality_id)
-    all_munis <- unique(all_munis)
+    # Merge and process data
+    combined_sf <- merge_group_data(data_a, data_b)
     
-    if (length(all_munis) == 0) return()
-    
-    # Create combined dataset with ALL municipalities
-    combined_data <- data.frame(municipality_id = all_munis)
-    
-    # Add Group A data
-    if (!is.null(data_a) && nrow(data_a) > 0) {
-      data_a_df <- st_drop_geometry(data_a)
-      combined_data <- merge(combined_data, 
-                             data_a_df[, c("municipality_id", "municipality_name", "frequency", "name_breakdown")],
-                             by = "municipality_id", all.x = TRUE, suffixes = c("", "_a"))
-      names(combined_data)[names(combined_data) == "frequency"] <- "freq_a"
-      names(combined_data)[names(combined_data) == "name_breakdown"] <- "breakdown_a"
-      names(combined_data)[names(combined_data) == "municipality_name"] <- "muni_name"
-    } else {
-      combined_data$freq_a <- 0
-      combined_data$breakdown_a <- ""
-    }
-    
-    # Add Group B data
-    if (!is.null(data_b) && nrow(data_b) > 0) {
-      data_b_df <- st_drop_geometry(data_b)
-      combined_data <- merge(combined_data,
-                             data_b_df[, c("municipality_id", "municipality_name", "frequency", "name_breakdown")],
-                             by = "municipality_id", all.x = TRUE, suffixes = c("", "_b"))
-      names(combined_data)[names(combined_data) == "frequency"] <- "freq_b"
-      names(combined_data)[names(combined_data) == "name_breakdown"] <- "breakdown_b"
-      
-      # Update municipality name if we didn't have it from Group A
-      if (!"muni_name" %in% names(combined_data)) {
-        names(combined_data)[names(combined_data) == "municipality_name"] <- "muni_name"
-      } else {
-        # Fill in missing names from Group B
-        combined_data$muni_name <- ifelse(
-          is.na(combined_data$muni_name),
-          combined_data$municipality_name,
-          combined_data$muni_name
-        )
-        combined_data$municipality_name <- NULL
-      }
-    } else {
-      combined_data$freq_b <- 0
-      combined_data$breakdown_b <- ""
-    }
-    
-    # Add geometries - prioritize Group A, fall back to Group B
-    if (!is.null(data_a) && nrow(data_a) > 0) {
-      geom_data <- data_a[match(combined_data$municipality_id, data_a$municipality_id), ]
-      combined_data$geometry <- st_geometry(geom_data)
-      
-      # For municipalities only in Group B, get their geometry
-      if (!is.null(data_b) && nrow(data_b) > 0) {
-        missing_geom <- is.na(st_dimension(combined_data$geometry))
-        if (any(missing_geom)) {
-          geom_data_b <- data_b[match(combined_data$municipality_id[missing_geom], data_b$municipality_id), ]
-          combined_data$geometry[missing_geom] <- st_geometry(geom_data_b)
-        }
-      }
-    } else if (!is.null(data_b) && nrow(data_b) > 0) {
-      geom_data <- data_b[match(combined_data$municipality_id, data_b$municipality_id), ]
-      combined_data$geometry <- st_geometry(geom_data)
-    }
-    
-    # Fill NAs with 0
-    combined_data$freq_a[is.na(combined_data$freq_a)] <- 0
-    combined_data$freq_b[is.na(combined_data$freq_b)] <- 0
-    
-    # Calculate total frequency and normalize for intensity
-    combined_data$total_freq <- combined_data$freq_a + combined_data$freq_b
-    max_total <- max(combined_data$total_freq, na.rm = TRUE)
-    
-    # Determine color and intensity for each municipality
-    combined_data$color <- sapply(1:nrow(combined_data), function(i) {
-      freq_a <- combined_data$freq_a[i]
-      freq_b <- combined_data$freq_b[i]
-      total <- combined_data$total_freq[i]
-      
-      # Intensity from 0.4 to 1.0 based on frequency
-      intensity <- 0.4 + (0.6 * (total / max_total))
-      
-      if (freq_a > 0 && freq_b > 0) {
-        # Both groups present - blend colors
-        blend_colors(freq_a, freq_b, intensity)
-      } else if (freq_a > 0) {
-        # Only Group A - red scale
-        base_red <- col2rgb("#e74c3c")
-        blended <- base_red * intensity
-        rgb(blended[1], blended[2], blended[3], maxColorValue = 255)
-      } else {
-        # Only Group B - blue scale
-        base_blue <- col2rgb("#3498db")
-        blended <- base_blue * intensity
-        rgb(blended[1], blended[2], blended[3], maxColorValue = 255)
-      }
-    })
-    
-    # Create labels
-    combined_data$label_text <- sapply(1:nrow(combined_data), function(i) {
-      parts <- c(paste0("<strong style='font-size: 14px;'>", combined_data$muni_name[i], "</strong>"))
-      
-      if (combined_data$freq_a[i] > 0) {
-        parts <- c(parts, paste0("<span style='color: #e74c3c; font-weight: 600;'>Group A (", 
-                                 combined_data$freq_a[i], " total):</span>"))
-        
-        # Parse name breakdown
-        if (!is.na(combined_data$breakdown_a[i]) && combined_data$breakdown_a[i] != "") {
-          breakdown <- strsplit(combined_data$breakdown_a[i], "; ")[[1]]
-          for (item in breakdown) {
-            parts <- c(parts, paste0("<span style='color: #e74c3c; font-size: 12px; padding-left: 8px;'>• ", item, "</span>"))
-          }
-        }
-      }
-      
-      if (combined_data$freq_b[i] > 0) {
-        # Add spacing if both groups present
-        if (combined_data$freq_a[i] > 0) {
-          parts <- c(parts, "<span style='font-size: 4px;'> </span>")
-        }
-        
-        parts <- c(parts, paste0("<span style='color: #3498db; font-weight: 600;'>Group B (", 
-                                 combined_data$freq_b[i], " total):</span>"))
-        
-        # Parse name breakdown
-        if (!is.na(combined_data$breakdown_b[i]) && combined_data$breakdown_b[i] != "") {
-          breakdown <- strsplit(combined_data$breakdown_b[i], "; ")[[1]]
-          for (item in breakdown) {
-            parts <- c(parts, paste0("<span style='color: #3498db; font-size: 12px; padding-left: 8px;'>• ", item, "</span>"))
-          }
-        }
-      }
-      
-      if (combined_data$freq_a[i] > 0 && combined_data$freq_b[i] > 0) {
-        total <- combined_data$total_freq[i]
-        pct_a <- round(100 * combined_data$freq_a[i] / total, 1)
-        pct_b <- round(100 * combined_data$freq_b[i] / total, 1)
-        parts <- c(parts, "<span style='font-size: 4px;'> </span>")
-        parts <- c(parts, paste0("<span style='color: #666; font-size: 11px; font-style: italic;'>",
-                                 "Overall Ratio: ", pct_a, "% / ", pct_b, "%</span>"))
-      }
-      
-      paste(parts, collapse = "<br/>")
-    })
-    
-    # Convert to sf object
-    combined_sf <- st_sf(combined_data, crs = 4326)
+    if (is.null(combined_sf)) return()
     
     # Add to map
     map_proxy %>%
@@ -425,7 +304,6 @@ server <- function(input, output, session) {
       return(tags$p("Select names to compare"))
     }
     
-    # Get statistics for both groups
     stats_a <- if (length(input$names_a) > 0) {
       get_name_statistics(conn, input$names_a)
     } else NULL
@@ -489,7 +367,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # Interactive comparison chart with Plotly - USING CUSTOM PALETTES
+  # Interactive comparison chart with Plotly
   output$comparison_chart <- renderPlotly({
     stats_a <- if (length(input$names_a) > 0) {
       get_name_statistics(conn, input$names_a)
@@ -499,73 +377,7 @@ server <- function(input, output, session) {
       get_name_statistics(conn, input$names_b)
     } else NULL
     
-    # Prepare data
-    plot_data <- data.frame()
-    
-    if (!is.null(stats_a)) {
-      plot_data <- rbind(plot_data, data.frame(
-        name = stats_a$name,
-        count = stats_a$total_count,
-        group = "Group A",
-        stringsAsFactors = FALSE
-      ))
-    }
-    
-    if (!is.null(stats_b)) {
-      plot_data <- rbind(plot_data, data.frame(
-        name = stats_b$name,
-        count = stats_b$total_count,
-        group = "Group B",
-        stringsAsFactors = FALSE
-      ))
-    }
-    
-    if (nrow(plot_data) == 0) return(NULL)
-    
-    # Create color map using custom palettes
-    unique_names_a <- if (!is.null(stats_a)) stats_a$name else character(0)
-    unique_names_b <- if (!is.null(stats_b)) stats_b$name else character(0)
-    
-    color_map <- c()
-    if (length(unique_names_a) > 0) {
-      color_map <- c(color_map, setNames(GROUP_A_COLORS[1:length(unique_names_a)], unique_names_a))
-    }
-    if (length(unique_names_b) > 0) {
-      color_map <- c(color_map, setNames(GROUP_B_COLORS[1:length(unique_names_b)], unique_names_b))
-    }
-    
-    # Determine text color based on dark mode
-    text_color <- if(darkMode()) "#e0e0e0" else "#333333"
-    grid_color <- if(darkMode()) "#444444" else "#e0e0e0"
-    
-    plot_ly(plot_data, x = ~group, y = ~count, color = ~name, 
-            colors = color_map,
-            type = "bar",
-            hovertemplate = paste(
-              "<b>%{fullData.name}</b><br>",
-              "Count: %{y:,}<br>",
-              "<extra></extra>"
-            )) %>%
-      layout(
-        barmode = "stack",
-        xaxis = list(
-          title = "",
-          tickfont = list(color = text_color, size = 12),
-          showgrid = FALSE
-        ),
-        yaxis = list(
-          title = "",
-          tickfont = list(color = text_color, size = 11),
-          gridcolor = grid_color,
-          showgrid = TRUE
-        ),
-        showlegend = FALSE,
-        margin = list(l = 50, r = 20, t = 20, b = 40),
-        plot_bgcolor = "rgba(0,0,0,0)",
-        paper_bgcolor = "rgba(0,0,0,0)",
-        font = list(color = text_color)
-      ) %>%
-      config(displayModeBar = FALSE)
+    create_comparison_chart(stats_a, stats_b, darkMode())
   })
   
   # Interactive regional chart with Plotly
@@ -578,100 +390,7 @@ server <- function(input, output, session) {
       get_name_statistics(conn, input$names_b)
     } else NULL
     
-    # Parse regional data
-    regional_data <- data.frame()
-    
-    if (!is.null(stats_a)) {
-      for (i in 1:nrow(stats_a)) {
-        if (stats_a$top_regions[i] != "") {
-          regions <- strsplit(stats_a$top_regions[i], "; ")[[1]]
-          for (r in regions) {
-            parts <- strsplit(r, ": ")[[1]]
-            if (length(parts) == 2) {
-              regional_data <- rbind(regional_data, data.frame(
-                region = parts[1],
-                count = as.numeric(parts[2]),
-                group = "Group A",
-                stringsAsFactors = FALSE
-              ))
-            }
-          }
-        }
-      }
-    }
-    
-    if (!is.null(stats_b)) {
-      for (i in 1:nrow(stats_b)) {
-        if (stats_b$top_regions[i] != "") {
-          regions <- strsplit(stats_b$top_regions[i], "; ")[[1]]
-          for (r in regions) {
-            parts <- strsplit(r, ": ")[[1]]
-            if (length(parts) == 2) {
-              regional_data <- rbind(regional_data, data.frame(
-                region = parts[1],
-                count = as.numeric(parts[2]),
-                group = "Group B",
-                stringsAsFactors = FALSE
-              ))
-            }
-          }
-        }
-      }
-    }
-    
-    if (nrow(regional_data) == 0) return(NULL)
-    
-    # Aggregate by region and group
-    regional_agg <- aggregate(count ~ region + group, data = regional_data, FUN = sum)
-    
-    # Format region names: capitalize first letter of each word and add line breaks
-    format_region_name <- function(name) {
-      # Convert to title case (first letter of each word capitalized)
-      words <- strsplit(tolower(name), " ")[[1]]
-      formatted <- sapply(words, function(w) {
-        paste0(toupper(substring(w, 1, 1)), substring(w, 2))
-      })
-      # Join with <br> for line breaks
-      paste(formatted, collapse = "<br>")
-    }
-    
-    regional_agg$region_formatted <- sapply(regional_agg$region, format_region_name)
-    regional_agg$region_original <- regional_agg$region  # Keep original for hover
-    
-    # Determine text color based on dark mode
-    text_color <- if(darkMode()) "#e0e0e0" else "#333333"
-    grid_color <- if(darkMode()) "#444444" else "#e0e0e0"
-    
-    plot_ly(regional_agg, x = ~region_formatted, y = ~count, color = ~group,
-            colors = c("Group A" = "#e74c3c", "Group B" = "#3498db"),
-            type = "bar",
-            hovertemplate = paste(
-              "<b>%{customdata}</b><br>",
-              "%{fullData.name}: %{y:,}<br>",
-              "<extra></extra>"
-            ),
-            customdata = ~region_original) %>%
-      layout(
-        barmode = "group",
-        xaxis = list(
-          title = "",
-          tickfont = list(color = text_color, size = 10),
-          tickangle = 0,
-          showgrid = FALSE
-        ),
-        yaxis = list(
-          title = "",
-          tickfont = list(color = text_color, size = 11),
-          gridcolor = grid_color,
-          showgrid = TRUE
-        ),
-        showlegend = FALSE,
-        margin = list(l = 50, r = 20, t = 20, b = 100),
-        plot_bgcolor = "rgba(0,0,0,0)",
-        paper_bgcolor = "rgba(0,0,0,0)",
-        font = list(color = text_color)
-      ) %>%
-      config(displayModeBar = FALSE)
+    create_regional_chart(stats_a, stats_b, darkMode())
   })
 }
 
